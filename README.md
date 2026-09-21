@@ -5,6 +5,34 @@
 
 ---
 
+## 🚀 Démarrage rapide (60 secondes)
+
+**Étape 1 — Installez l'outil en 1 commande :**
+```bash
+curl -fsSL https://raw.githubusercontent.com/PPPTTT1732/wechat-agent/main/install.sh | bash
+```
+
+**Étape 2 — Connectez-vous (demandez le token à votre Lead Dev) :**
+```bash
+wechat-agent login
+```
+
+**Étape 3 — Liez votre projet WeChat :**
+```bash
+cd /votre/projet/wechat
+wechat-agent link
+```
+
+**Étape 4 — Demandez à l'IA de coder pour vous :**
+```bash
+wechat-agent prepare "Ajouter la page de profil utilisateur"
+# Puis dans VSCode : "Exécute les instructions du fichier .wechat_brief.md"
+```
+
+C'est tout. 🎉
+
+---
+
 ## 📖 Table des Matières
 
 1. [C'est quoi cette plateforme ?](#-cest-quoi-cette-plateforme-)
