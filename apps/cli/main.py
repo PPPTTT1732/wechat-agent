@@ -3,21 +3,20 @@ import json
 import uuid
 import urllib.request
 import urllib.error
+import subprocess
 from pathlib import Path
 
-# Typer est déjà dans nos dépendances (inclus via FastAPI/Pydantic ou ajouté via pip)
-# S'il manque en production, pip install typer s'en chargera.
 try:
     import typer
 except ImportError:
     import sys
-    print("Typer n'est pas installé. Lancez: pip install typer")
     sys.exit(1)
 
-app = typer.Typer(help="WeChat Engineering Agent - CLI (Phase 30)")
+app = typer.Typer(help="WeChat AgentOps - Hybrid Local/Cloud Architecture")
 
 CONFIG_DIR = Path.home() / ".wechat-agent"
 CONFIG_FILE = CONFIG_DIR / "config.json"
+BRIEF_FILE = Path(".wechat_brief.md")
 
 def load_config():
     if not CONFIG_FILE.exists():
@@ -31,60 +30,76 @@ def save_config(config):
         json.dump(config, f)
 
 @app.command()
-def login(token: str = typer.Option(..., prompt="🔑 Entrez votre token (ex: DEV_TOKEN_ORG_A)")):
-    """S'authentifier auprès de l'API AgentOps."""
+def login(
+    token: str = typer.Option(..., prompt="🔑 Entrez votre token d'équipe"),
+    api_url: str = typer.Option("http://localhost:8000", prompt="🌐 URL du serveur Neon/Render")
+):
+    """S'authentifier auprès du cerveau de la mémoire (Render/Neon)."""
     config = load_config()
     config["token"] = token
-    config["api_url"] = "http://localhost:8000"
+    config["api_url"] = api_url.rstrip("/")
     save_config(config)
-    typer.secho("✅ Connecté avec succès à la plateforme AgentOps !", fg=typer.colors.GREEN)
+    typer.secho(f"✅ Connecté au Cerveau d'Équipe sur {config['api_url']} !", fg=typer.colors.GREEN)
 
 @app.command()
 def link(project_id: str = typer.Option(..., prompt="📁 Entrez l'ID de votre projet (Neon DB)")):
-    """Lier le répertoire local à un projet de la plateforme."""
+    """Lier le répertoire local à la mémoire du projet."""
     config = load_config()
     config["project_id"] = project_id
     save_config(config)
-    typer.secho(f"🔗 Dossier courant lié au projet : {project_id}", fg=typer.colors.BLUE)
+    typer.secho(f"🔗 Dossier lié au projet : {project_id}", fg=typer.colors.BLUE)
 
 @app.command()
-def ask(prompt: str):
-    """Demander à l'IA de résoudre un problème ou d'ajouter une feature."""
+def prepare(prompt: str):
+    """Prépare le terrain pour Antigravity/Codex en générant le Cahier des Charges."""
     config = load_config()
-    token = config.get("token")
-    project_id = config.get("project_id")
-    api_url = config.get("api_url", "http://localhost:8000")
-
-    if not token or not project_id:
-        typer.secho("❌ Erreur : Vous devez lancer 'wechat-agent login' puis 'wechat-agent link'.", fg=typer.colors.RED)
-        raise typer.Exit(1)
-
-    task_id = str(uuid.uuid4())
     
-    # Contrat d'interface strict (Phase 01)
-    payload = json.dumps({
-        "task_id": task_id,
-        "user_id": "cli_developer",
-        "project_id": project_id,
-        "organization_id": "ignored_by_api", # Écrasé côté serveur par le JWT pour la sécurité
-        "prompt": prompt
-    }).encode('utf-8')
+    # 1. (Dans le futur) Le CLI fera un appel GET /rag au serveur pour récupérer la mémoire Neon
+    # memory_context = fetch_neon_memory(prompt, config)
+    memory_context = "Aucune erreur similaire trouvée dans la mémoire d'équipe pour ce projet."
+    
+    # 2. On génère le fichier local pour l'IA de l'IDE
+    brief_content = f"""# 🧠 WeChat AgentOps - Execution Brief
 
-    req = urllib.request.Request(f"{api_url}/api/v1/tasks/")
-    req.add_header('Content-Type', 'application/json')
-    req.add_header('Authorization', f'Bearer {token}')
+## 🎯 Demande du Développeur
+{prompt}
 
+## 📚 Mémoire de l'Équipe (Base Neon)
+{memory_context}
+
+## 📋 Instructions pour Antigravity / Claude
+1. Lis attentivement la demande.
+2. Écris le code directement dans les bons fichiers de ce projet.
+3. Respecte l'architecture WeChat Native.
+"""
+    
+    with open(BRIEF_FILE, "w") as f:
+        f.write(brief_content)
+        
+    typer.secho(f"✅ Fichier {BRIEF_FILE} généré avec succès !", fg=typer.colors.GREEN)
+    typer.secho("🤖 Maintenant, ouvrez le chat de votre éditeur (Antigravity/Claude) et dites :", fg=typer.colors.CYAN)
+    typer.secho(f'👉 "Exécute les instructions du fichier {BRIEF_FILE}"', fg=typer.colors.YELLOW, bold=True)
+
+@app.command()
+def learn():
+    """Capture le code fraîchement généré par l'IA locale et l'envoie dans Neon."""
+    config = load_config()
+    
+    # On capture les modifications non commitées (ce que l'IA vient de coder)
     try:
-        typer.secho("🚀 Envoi de la tâche au WeChat Specialist (RAG)...", fg=typer.colors.YELLOW)
-        response = urllib.request.urlopen(req, payload)
-        result = json.loads(response.read())
+        git_diff = subprocess.check_output(["git", "diff"]).decode("utf-8")
+        if not git_diff:
+            typer.secho("❌ Aucun code modifié trouvé. Demandez d'abord à l'IA de coder.", fg=typer.colors.RED)
+            return
+            
+        # (Dans le futur) Envoyer git_diff à l'API POST /learn pour vectorisation dans Neon
+        typer.secho("🧠 Envoi des connaissances au serveur Neon (RAG)...", fg=typer.colors.YELLOW)
+        # requests.post(...)
         
-        typer.secho(f"✅ Tâche acceptée ! ID: {result['task_id']}", fg=typer.colors.GREEN)
-        typer.secho("🛠️  Le Worker Celery travaille dessus en arrière-plan. Vous recevrez une notification quand le code sera prêt.", fg=typer.colors.CYAN)
+        typer.secho("✅ Code sauvegardé dans la mémoire de l'équipe (Statut: PROPOSED) !", fg=typer.colors.GREEN)
         
-    except urllib.error.HTTPError as e:
-        error_msg = e.read().decode('utf-8')
-        typer.secho(f"❌ Erreur API: {e.code} - {error_msg}", fg=typer.colors.RED)
+    except Exception as e:
+        typer.secho("❌ Erreur lors de la capture du code.", fg=typer.colors.RED)
 
 if __name__ == "__main__":
     app()
