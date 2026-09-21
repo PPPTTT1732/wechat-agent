@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from apps.api.routers import tasks
+from apps.api.routers import tasks, projects
 
 app = FastAPI(
     title="WeChat Engineering Intelligence API",
@@ -9,6 +9,7 @@ app = FastAPI(
 
 # Inclusion des routes
 app.include_router(tasks.router)
+app.include_router(projects.router)  # <-- Nouveau module intégré
 
 @app.get("/health", tags=["System"])
 async def health_check():
