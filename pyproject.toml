@@ -1,4 +1,7 @@
 [project]
+
+[project.scripts]
+wechat-agent = "apps.cli.main:app"
 name = "wechat-engineering-agent"
 version = "0.1.0"
 description = "WeChat Engineering Intelligence Platform"
