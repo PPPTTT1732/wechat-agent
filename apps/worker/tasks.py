@@ -1,46 +1,46 @@
 from apps.worker.celery_app import celery_app
 from packages.database.session import SessionLocal
-from packages.database.models import AgentRun
+from packages.database.models import AgentRun, Project
+from packages.code_intelligence.scanner import ProjectScanner
 import time
 
 @celery_app.task(bind=True, name="orchestrate_agent_task")
 def orchestrate_agent_task(self, task_request_dict: dict):
-    """
-    C'est ici que l'agent vit en arrière-plan.
-    task_request_dict est le modèle Pydantic TaskRequest converti en dictionnaire.
-    """
     task_id = task_request_dict.get("task_id")
     project_id = task_request_dict.get("project_id")
     
     db = SessionLocal()
     agent_run = None
     try:
-        # 1. Mise à jour DB Neon : L'agent démarre
+        # 1. Enregistrer le lancement
         agent_run = AgentRun(
-            task_id=task_id, 
-            project_id=project_id,
-            provider="routing...", # En attente du Model Router
-            model="routing...",
-            status="running"
+            task_id=task_id, project_id=project_id,
+            provider="pending", model="pending", status="running"
         )
         db.add(agent_run)
+        
+        # Récupération de l'URL GitHub du projet (Étape 08)
+        project = db.query(Project).filter(Project.id == project_id).first()
+        repo_url = project.repository_url if project else "local"
         db.commit()
 
-        # --- PIPELINE DE L'AGENT ---
-        # Ici viendront s'emboîter les prochaines phases :
-        # - Code Intelligence (git clone)
-        # - WeChat Specialist (RAG + ExecutionBrief)
-        # - Model Router (Sélection du LLM)
-        # - AgentProvider (Génération du code)
+        # 2. CODE INTELLIGENCE ENGINE (Phase 09)
+        scanner = ProjectScanner()
+        # [Ici se trouvera le git clone du repo_url vers un dossier /tmp/]
         
-        print(f"[WORKER] Démarrage de la tâche {task_id} pour le projet {project_id}")
-        time.sleep(2) # Simulation temporaire d'un travail d'IA
+        # Le scanner lit le dossier et produit le contexte exact (Taro, JS, TS, etc.)
+        project_context = scanner.analyze_workspace_mock(repo_url)
+        print(f"[SCANNER] ADN du projet détecté : {project_context}")
         
-        # 2. L'agent a terminé avec succès
+        # 3. WECHAT SPECIALIST (Phase 07)
+        # Il prendra ce contexte et l'enverra au LLM pour rédiger le ExecutionBrief...
+        time.sleep(2) # Simulation de réflexion IA
+        
+        # 4. Succès de la tâche
         agent_run.status = "success"
         db.commit()
         
-        return {"status": "success", "task_id": task_id}
+        return {"status": "success", "context_detected": project_context}
         
     except Exception as e:
         db.rollback()
