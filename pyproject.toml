@@ -10,6 +10,7 @@ dependencies = [
     "sqlalchemy",
     "alembic",
     "pgvector",
+    "psycopg2-binary",
     "celery",
     "redis",
     "typer"

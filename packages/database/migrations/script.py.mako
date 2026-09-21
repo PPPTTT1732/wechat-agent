@@ -8,6 +8,7 @@ Create Date: ${create_date}
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
+import pgvector.sqlalchemy
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.
