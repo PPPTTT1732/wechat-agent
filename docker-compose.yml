@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # 1. L'API FastAPI accessible sur http://localhost:8000
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: wechat_agent_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app  # Hot-reload : vos modifications de code s'appliquent en temps réel
+    command: uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 2. L'Ouvrier de l'ombre (Celery)
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    container_name: wechat_agent_worker
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+
+  # 3. Base de données Locale (Optionnelle)
+  # Actuellement commentée car vous utilisez Neon et Upstash.
+  # Dé-commentez si vous souhaitez travailler en 100% hors-ligne.
+  # redis:
+  #   image: redis:alpine
+  #   ports:
+  #     - "6379:6379"
+  
+  # db:
+  #   image: ankane/pgvector:latest
+  #   environment:
+  #     POSTGRES_USER: local_user
+  #     POSTGRES_PASSWORD: local_password
+  #     POSTGRES_DB: agent_db
+  #   ports:
+  #     - "5432:5432"
