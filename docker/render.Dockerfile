@@ -4,9 +4,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Installation des dépendances
+# Installation des dépendances depuis pyproject.toml (source unique de vérité)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir fastapi uvicorn pydantic sqlalchemy alembic pgvector psycopg2-binary openai anthropic celery redis
+RUN pip install --no-cache-dir setuptools wheel
+RUN pip install --no-cache-dir fastapi uvicorn pydantic sqlalchemy alembic pgvector psycopg2-binary openai anthropic celery redis requests typer
 
 # Copie du code source
 COPY . .
