@@ -1,22 +1,10 @@
 from fastapi import FastAPI
-from apps.api.routers import tasks, projects
+from apps.api.routers import memory
 
-app = FastAPI(
-    title="WeChat Engineering Intelligence API",
-    description="Plateforme AgentOps pour l'écosystème WeChat",
-    version="0.1.0"
-)
+app = FastAPI(title="WeChat AgentOps API")
 
-# Inclusion des routes
-app.include_router(tasks.router)
-app.include_router(projects.router)  # <-- Nouveau module intégré
+app.include_router(memory.router)
 
-@app.get("/health", tags=["System"])
-async def health_check():
-    """Vérification de la santé du conteneur (pour Docker/Render)."""
-    return {
-        "status": "ok", 
-        "service": "wechat-engineering-agent",
-        "database": "unconnected",
-        "worker": "unconnected"
-    }
+@app.get("/")
+def health_check():
+    return {"status": "ok", "message": "Le Cerveau d'Équipe AgentOps est en ligne !"}

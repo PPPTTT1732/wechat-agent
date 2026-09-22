@@ -1,13 +1,11 @@
 import os
 import json
-import uuid
-import urllib.request
-import urllib.error
 import subprocess
 from pathlib import Path
 
 try:
     import typer
+    import requests
 except ImportError:
     import sys
     sys.exit(1)
@@ -20,9 +18,14 @@ BRIEF_FILE = Path(".wechat_brief.md")
 
 def load_config():
     if not CONFIG_FILE.exists():
-        return {}
+        typer.secho("❌ Erreur: Non connecté. Lancez 'wechat-agent login'", fg=typer.colors.RED)
+        raise typer.Exit(1)
     with open(CONFIG_FILE, "r") as f:
         return json.load(f)
+
+def load_config_safe():
+    if not CONFIG_FILE.exists(): return {}
+    with open(CONFIG_FILE, "r") as f: return json.load(f)
 
 def save_config(config):
     CONFIG_DIR.mkdir(exist_ok=True)
@@ -34,72 +37,89 @@ def login(
     token: str = typer.Option(..., prompt="🔑 Entrez votre token d'équipe"),
     api_url: str = typer.Option("http://localhost:8000", prompt="🌐 URL du serveur Neon/Render")
 ):
-    """S'authentifier auprès du cerveau de la mémoire (Render/Neon)."""
-    config = load_config()
+    config = load_config_safe()
     config["token"] = token
     config["api_url"] = api_url.rstrip("/")
     save_config(config)
-    typer.secho(f"✅ Connecté au Cerveau d'Équipe sur {config['api_url']} !", fg=typer.colors.GREEN)
+    typer.secho(f"✅ Connecté au serveur sur {config['api_url']}", fg=typer.colors.GREEN)
 
 @app.command()
-def link(project_id: str = typer.Option(..., prompt="📁 Entrez l'ID de votre projet (Neon DB)")):
-    """Lier le répertoire local à la mémoire du projet."""
-    config = load_config()
+def link(project_id: str = typer.Option(..., prompt="📁 Entrez l'ID de votre projet (ex: mp-afritrips)")):
+    config = load_config_safe()
     config["project_id"] = project_id
     save_config(config)
-    typer.secho(f"🔗 Dossier lié au projet : {project_id}", fg=typer.colors.BLUE)
+    typer.secho(f"🔗 Projet lié : {project_id}", fg=typer.colors.BLUE)
 
 @app.command()
 def prepare(prompt: str):
-    """Prépare le terrain pour Antigravity/Codex en générant le Cahier des Charges."""
     config = load_config()
+    if "project_id" not in config:
+        typer.secho("❌ Veuillez lier le projet d'abord : 'wechat-agent link'", fg=typer.colors.RED)
+        raise typer.Exit(1)
+        
+    typer.secho("🧠 Consultation de la mémoire d'équipe (Neon DB)...", fg=typer.colors.YELLOW)
     
-    # 1. (Dans le futur) Le CLI fera un appel GET /rag au serveur pour récupérer la mémoire Neon
-    # memory_context = fetch_neon_memory(prompt, config)
-    memory_context = "Aucune erreur similaire trouvée dans la mémoire d'équipe pour ce projet."
+    # --- LE VRAI APPEL API ---
+    api_url = f"{config['api_url']}/api/v1/memory/prepare"
+    headers = {"Authorization": f"Bearer {config['token']}"}
+    payload = {"project_id": config["project_id"], "prompt": prompt}
     
-    # 2. On génère le fichier local pour l'IA de l'IDE
+    try:
+        res = requests.post(api_url, headers=headers, json=payload)
+        res.raise_for_status()
+        memory_context = res.json().get("context", "")
+    except Exception as e:
+        typer.secho(f"⚠️ Erreur de connexion au serveur : {e}", fg=typer.colors.RED)
+        memory_context = "Connexion à la mémoire échouée. Mode hors-ligne."
+
     brief_content = f"""# 🧠 WeChat AgentOps - Execution Brief
 
 ## 🎯 Demande du Développeur
 {prompt}
 
-## 📚 Mémoire de l'Équipe (Base Neon)
+## 📚 Mémoire de l'Équipe (Context RAG)
 {memory_context}
 
 ## 📋 Instructions pour Antigravity / Claude
-1. Lis attentivement la demande.
-2. Écris le code directement dans les bons fichiers de ce projet.
-3. Respecte l'architecture WeChat Native.
+1. Lis attentivement la demande et la mémoire de l'équipe ci-dessus.
+2. Si un fichier SKILL.md WeChat existe, respecte rigoureusement son architecture.
+3. Écris le code directement dans ce projet de manière complète.
 """
     
     with open(BRIEF_FILE, "w") as f:
         f.write(brief_content)
         
-    typer.secho(f"✅ Fichier {BRIEF_FILE} généré avec succès !", fg=typer.colors.GREEN)
-    typer.secho("🤖 Maintenant, ouvrez le chat de votre éditeur (Antigravity/Claude) et dites :", fg=typer.colors.CYAN)
-    typer.secho(f'👉 "Exécute les instructions du fichier {BRIEF_FILE}"', fg=typer.colors.YELLOW, bold=True)
+    typer.secho(f"✅ Fichier {BRIEF_FILE} généré avec le contexte cloud !", fg=typer.colors.GREEN)
+    typer.secho('👉 Demandez à votre IA de l\'exécuter.', fg=typer.colors.CYAN)
 
 @app.command()
 def learn():
-    """Capture le code fraîchement généré par l'IA locale et l'envoie dans Neon."""
     config = load_config()
-    
-    # On capture les modifications non commitées (ce que l'IA vient de coder)
+    if "project_id" not in config:
+        typer.secho("❌ Projet non lié.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+        
     try:
-        git_diff = subprocess.check_output(["git", "diff"]).decode("utf-8")
-        if not git_diff:
-            typer.secho("❌ Aucun code modifié trouvé. Demandez d'abord à l'IA de coder.", fg=typer.colors.RED)
+        # Capture du code fraîchement modifié/ajouté
+        git_diff = subprocess.check_output(["git", "diff", "HEAD"]).decode("utf-8")
+        if not git_diff.strip():
+            typer.secho("❌ Aucun code modifié n'a été détecté.", fg=typer.colors.RED)
             return
             
-        # (Dans le futur) Envoyer git_diff à l'API POST /learn pour vectorisation dans Neon
-        typer.secho("🧠 Envoi des connaissances au serveur Neon (RAG)...", fg=typer.colors.YELLOW)
-        # requests.post(...)
+        typer.secho("🧠 Envoi des modifications pour vectorisation mathématique...", fg=typer.colors.YELLOW)
+        
+        # --- LE VRAI APPEL API ---
+        api_url = f"{config['api_url']}/api/v1/memory/learn"
+        headers = {"Authorization": f"Bearer {config['token']}"}
+        payload = {"project_id": config["project_id"], "diff_content": git_diff}
+        
+        res = requests.post(api_url, headers=headers, json=payload)
+        res.raise_for_status()
         
         typer.secho("✅ Code sauvegardé dans la mémoire de l'équipe (Statut: PROPOSED) !", fg=typer.colors.GREEN)
         
     except Exception as e:
-        typer.secho("❌ Erreur lors de la capture du code.", fg=typer.colors.RED)
+        typer.secho(f"❌ Erreur lors de l'apprentissage : {e}", fg=typer.colors.RED)
 
 if __name__ == "__main__":
     app()

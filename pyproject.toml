@@ -20,6 +20,7 @@ dependencies = [
     "celery",
     "redis",
     "typer",
+    "requests",
 ]
 
 [project.scripts]

@@ -1,69 +1,28 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey, Float, JSON
-from sqlalchemy.orm import declarative_base, relationship
+from datetime import datetime
+from sqlalchemy import String, DateTime, Text, Enum, JSON
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
+import enum
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
-def generate_uuid():
-    return str(uuid.uuid4())
-
-def utcnow():
-    return datetime.now(timezone.utc)
-
-class Organization(Base):
-    __tablename__ = "organizations"
-    id = Column(String, primary_key=True, default=generate_uuid)
-    name = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    projects = relationship("Project", back_populates="organization")
-
-class Project(Base):
-    __tablename__ = "projects"
-    id = Column(String, primary_key=True, default=generate_uuid)
-    organization_id = Column(String, ForeignKey("organizations.id"), nullable=False)
-    name = Column(String, nullable=False)
-    framework = Column(String)  # Ex: 'Taro', 'Native WeChat'
-    language = Column(String)   # Ex: 'TypeScript', 'JavaScript'
-    repository_url = Column(String)
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    organization = relationship("Organization", back_populates="projects")
-    agent_runs = relationship("AgentRun", back_populates="project")
-
-class AgentRun(Base):
-    __tablename__ = "agent_runs"
-    id = Column(String, primary_key=True, default=generate_uuid)
-    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
-    task_id = Column(String, nullable=False)
-    provider = Column(String, nullable=False)
-    model = Column(String, nullable=False)
-    status = Column(String, nullable=False) # 'pending', 'running', 'success', 'failed'
-    metrics = Column(JSON) # {"latency_ms": 1200, "cost_usd": 0.04, "tokens": 4000}
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    project = relationship("Project", back_populates="agent_runs")
+class ChunkStatus(str, enum.Enum):
+    PROPOSED = "proposed"
+    OBSERVED = "observed"
+    VALIDATED = "validated"
+    TRUSTED = "trusted"
+    SHARED = "shared"
 
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
-    id = Column(String, primary_key=True, default=generate_uuid)
     
-    # ─── GESTION DES 3 NIVEAUX DE CONNAISSANCE (Phase 5) ───
-    # Si organization_id est NULL -> Niveau 1 (Global WeChat Knowledge)
-    organization_id = Column(String, ForeignKey("organizations.id"), nullable=True) 
-    # Si project_id est NULL mais org est défini -> Niveau 2 (Organisation)
-    # Si project_id est défini -> Niveau 3 (Projet spécifique)
-    project_id = Column(String, ForeignKey("projects.id"), nullable=True)
-    
-    content = Column(String, nullable=False)
-    content_type = Column(String, nullable=False) # 'documentation', 'experience', 'pattern'
-    status = Column(String, nullable=False) # 'proposed', 'validated', 'trusted', 'shared'
-    confidence = Column(Float, default=0.0)
-    
-    # pgvector embedding: dimension 768 standard pour beaucoup de modèles text-embedding
-    embedding = Column(Vector(768)) 
-    
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id: Mapped[str] = mapped_column(String(100), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    # Changement ici : 384 dimensions pour HuggingFace (all-MiniLM-L6-v2) au lieu de 1536
+    embedding: Mapped[Vector] = mapped_column(Vector(384))
+    status: Mapped[ChunkStatus] = mapped_column(Enum(ChunkStatus), default=ChunkStatus.PROPOSED)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
