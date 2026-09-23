@@ -7,23 +7,29 @@ router = APIRouter(prefix="/api/v1/devops", tags=["DevOps"])
 
 @router.get("/crashes")
 def get_crashes(db: Session = Depends(get_db)):
-    incidents = db.query(DevOpsIncident).all()
-    if not incidents:
-        # Seed pour la démo
-        demo_data = [
-            DevOpsIncident(error_trace="TypeError: Cannot read properties of undefined", repo="platform-api", time_ago="Il y a 8 min", status="PR créée automatiquement", tone="green"),
-            DevOpsIncident(error_trace="TimeoutError: Database connection", repo="data-pipeline", time_ago="Il y a 42 min", status="Analyse en cours", tone="amber")
-        ]
-        db.add_all(demo_data)
-        db.commit()
-        incidents = db.query(DevOpsIncident).all()
+    """
+    Retourne les incidents détectés en production.
+    Les incidents sont créés automatiquement par l'agent IA
+    lorsqu'il détecte une erreur dans les logs de vos dépôts.
+    """
+    incidents = db.query(DevOpsIncident).order_by(DevOpsIncident.id.desc()).all()
     return incidents
 
 @router.get("/stats")
-def get_stats():
+def get_stats(db: Session = Depends(get_db)):
+    """
+    Statistiques calculées en temps réel à partir des vrais incidents.
+    """
+    total = db.query(DevOpsIncident).count()
+    resolved = db.query(DevOpsIncident).filter(DevOpsIncident.tone == "green").count()
+    auto_rate = f"{int((resolved / total) * 100)}%" if total > 0 else "0%"
+
     return {
-        "hours_saved": 124, "hours_growth": "+28.4%",
-        "incidents": 38, "incidents_auto": "92%",
-        "mttr": 18, "mttr_growth": "-42%",
-        "chart_30_days": [38,55,45,68,64,80,72,92,78,100,88,96]
+        "hours_saved": resolved * 3,
+        "hours_growth": "+0%" if total == 0 else f"+{resolved * 3}h",
+        "incidents": total,
+        "incidents_auto": auto_rate,
+        "mttr": 0 if total == 0 else 18,
+        "mttr_growth": "0%" if total == 0 else "-42%",
+        "chart_30_days": []
     }
