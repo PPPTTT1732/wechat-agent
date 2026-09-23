@@ -2,21 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Clock, Tag, Github } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser, useAuth } from '@clerk/clerk-react';
 
 const API_URL = "https://wechat-agent-5y0i.onrender.com/api/v1/memory";
 const PROJECT_ID = "mp-afritrips-v1";
 
 function DashboardContent() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const [chunks, setChunks] = useState([]);
+  const [role, setRole] = useState("DEV"); // Par défaut, tout le monde est dev
   const [loading, setLoading] = useState(true);
 
-  const fetchChunks = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch(`${API_URL}/dashboard/chunks?project_id=${PROJECT_ID}`);
-      const data = await res.json();
-      setChunks(data);
+      const token = await getToken();
+      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+      
+      // 1. Récupération du rôle
+      const roleRes = await fetch(`${API_URL}/dashboard/me`, { headers });
+      if (roleRes.ok) {
+        const roleData = await roleRes.json();
+        setRole(roleData.role);
+      }
+
+      // 2. Récupération de la mémoire
+      const res = await fetch(`${API_URL}/dashboard/chunks?project_id=${PROJECT_ID}`, { headers });
+      if (res.ok) {
+        setChunks(await res.json());
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -25,19 +39,21 @@ function DashboardContent() {
   };
 
   useEffect(() => {
-    fetchChunks();
+    fetchData();
   }, []);
 
   const updateStatus = async (id, newStatus) => {
     try {
-      await fetch(`${API_URL}/dashboard/chunks/${id}`, {
+      const token = await getToken();
+      const res = await fetch(`${API_URL}/dashboard/chunks/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
-      fetchChunks();
+      if (!res.ok) throw new Error("Accès refusé");
+      fetchData();
     } catch (err) {
-      alert("Erreur lors de la mise à jour");
+      alert(err.message);
     }
   };
 
@@ -48,19 +64,23 @@ function DashboardContent() {
     const tags = currentMetadata?.tags || [];
     if (!tags.includes(tag)) {
       try {
-        await fetch(`${API_URL}/dashboard/chunks/${id}`, {
+        const token = await getToken();
+        const res = await fetch(`${API_URL}/dashboard/chunks/${id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ metadata: { ...currentMetadata, tags: [...tags, tag] } })
         });
-        fetchChunks();
+        if (!res.ok) throw new Error("Accès refusé");
+        fetchData();
       } catch (err) {
-        alert("Erreur lors de l'ajout du tag");
+        alert(err.message);
       }
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Chargement...</div>;
+  if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Sécurisation du Dashboard...</div>;
+
+  const isAdmin = role === "ADMIN";
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
@@ -85,8 +105,11 @@ function DashboardContent() {
             </div>
             <div className="ml-4 border-l border-gray-700 pl-6 flex items-center gap-3">
               <div className="text-right">
-                <div className="text-sm font-bold text-white">{user?.fullName || "Lead Dev"}</div>
-                <div className="text-xs text-gray-400">Admin</div>
+                <div className="text-sm font-bold text-white">{user?.fullName || "Utilisateur"}</div>
+                {/* Affiche dynamiquement le rôle récupéré du serveur */}
+                <div className={`text-xs font-bold ${isAdmin ? 'text-purple-400' : 'text-gray-500'}`}>
+                  {isAdmin ? '👑 Lead Dev' : '💻 Développeur'}
+                </div>
               </div>
               <UserButton appearance={{ elements: { userButtonAvatarBox: "w-10 h-10" } }} />
             </div>
@@ -95,10 +118,15 @@ function DashboardContent() {
 
         <div className="grid gap-6">
           {chunks.map(chunk => (
-            <div key={chunk.id} className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
-              {/* En-tête de la carte avec Badges et Boutons */}
+            <div key={chunk.id} className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg relative overflow-hidden">
+              {!isAdmin && chunk.status === 'PROPOSED' && (
+                <div className="absolute top-0 right-0 bg-yellow-500/20 text-yellow-300 text-xs px-3 py-1 rounded-bl-lg font-bold">
+                  En attente de validation par le Lead Dev
+                </div>
+              )}
+              
               <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mt-2">
                   {chunk.status === 'PROPOSED' && <span className="flex items-center gap-1 text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full text-sm font-medium"><Clock size={16}/> En attente</span>}
                   {chunk.status === 'TRUSTED' && <span className="flex items-center gap-1 text-green-400 bg-green-400/10 px-3 py-1 rounded-full text-sm font-medium"><CheckCircle size={16}/> Validé</span>}
                   {chunk.status === 'REJECTED' && <span className="flex items-center gap-1 text-red-400 bg-red-400/10 px-3 py-1 rounded-full text-sm font-medium"><XCircle size={16}/> Rejeté</span>}
@@ -107,39 +135,42 @@ function DashboardContent() {
                   </span>
                 </div>
                 
-                <div className="flex gap-2">
-                  {chunk.status !== 'TRUSTED' && (
-                    <button onClick={() => updateStatus(chunk.id, 'TRUSTED')} className="bg-green-500/20 text-green-400 hover:bg-green-500/30 px-3 py-1.5 rounded transition-colors text-sm font-medium">
-                      Accepter
-                    </button>
-                  )}
-                  {chunk.status !== 'REJECTED' && (
-                    <button onClick={() => updateStatus(chunk.id, 'REJECTED')} className="bg-red-500/20 text-red-400 hover:bg-red-500/30 px-3 py-1.5 rounded transition-colors text-sm font-medium">
-                      Rejeter
-                    </button>
-                  )}
-                </div>
+                {/* Les boutons ne s'affichent QUE pour l'Admin */}
+                {isAdmin && (
+                  <div className="flex gap-2">
+                    {chunk.status !== 'TRUSTED' && (
+                      <button onClick={() => updateStatus(chunk.id, 'TRUSTED')} className="bg-green-500/20 text-green-400 hover:bg-green-500/30 px-3 py-1.5 rounded transition-colors text-sm font-medium">
+                        Accepter
+                      </button>
+                    )}
+                    {chunk.status !== 'REJECTED' && (
+                      <button onClick={() => updateStatus(chunk.id, 'REJECTED')} className="bg-red-500/20 text-red-400 hover:bg-red-500/30 px-3 py-1.5 rounded transition-colors text-sm font-medium">
+                        Rejeter
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Contenu du code */}
               <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 whitespace-pre-wrap border border-gray-800">
                 {chunk.content}
               </div>
 
-              {/* Tags */}
-              <div className="mt-4 flex flex-wrap gap-2 items-center">
-                <button 
-                  onClick={() => addTag(chunk.id, chunk.metadata)}
-                  className="flex items-center gap-1 text-gray-400 hover:text-white bg-gray-700/50 hover:bg-gray-700 px-2 py-1 rounded text-xs transition-colors"
-                >
-                  <Tag size={14} /> Ajouter un tag
-                </button>
-                {chunk.metadata?.tags?.map((tag, idx) => (
-                  <span key={idx} className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-medium">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
+              {isAdmin && (
+                <div className="mt-4 flex flex-wrap gap-2 items-center">
+                  <button 
+                    onClick={() => addTag(chunk.id, chunk.metadata)}
+                    className="flex items-center gap-1 text-gray-400 hover:text-white bg-gray-700/50 hover:bg-gray-700 px-2 py-1 rounded text-xs transition-colors"
+                  >
+                    <Tag size={14} /> Ajouter un tag
+                  </button>
+                  {chunk.metadata?.tags?.map((tag, idx) => (
+                    <span key={idx} className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-medium">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           
