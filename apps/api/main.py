@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apps.api.routers import memory
-from apps.api.routers import components, devops, team, twin
+from apps.api.routers import components, devops, team, twin, auth
 from packages.database.models import Base
 from packages.database.sonatel_models import UIComponent, DevOpsIncident, LeaderboardProfile
+from packages.database.auth_models import User
 from packages.database.session import engine
 from sqlalchemy import text
 import os
@@ -34,6 +35,7 @@ def on_startup():
 app.include_router(memory.router)
 app.include_router(components.router)
 app.include_router(twin.router)
+app.include_router(auth.router)
 app.include_router(devops.router)
 app.include_router(team.router)
 
