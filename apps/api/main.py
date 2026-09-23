@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from apps.api.routers import memory
 from packages.database.models import Base
 from packages.database.session import engine
+from sqlalchemy import text
 import os
 
 app = FastAPI(title="WeChat AgentOps API")
@@ -11,9 +12,15 @@ app = FastAPI(title="WeChat AgentOps API")
 def on_startup():
     try:
         Base.metadata.create_all(bind=engine)
-        print("✅ Tables Neon créées/vérifiées avec succès")
+        # Migration douce : ajout des colonnes manquantes sans perdre les données
+        with engine.begin() as conn:
+            conn.execute(text("""
+                ALTER TABLE knowledge_chunks 
+                ADD COLUMN IF NOT EXISTS metadata_json JSON DEFAULT '{}'::json
+            """))
+        print("✅ Tables Neon créées/migrées avec succès")
     except Exception as e:
-        print(f"❌ Erreur de connexion à la base de données: {e}")
+        print(f"❌ Erreur de migration DB: {e}")
 
 app.include_router(memory.router)
 

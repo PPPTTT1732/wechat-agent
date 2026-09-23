@@ -2,15 +2,12 @@ import requests
 import os
 
 def get_huggingface_embedding(text: str) -> list[float]:
-    """Utilise l'API gratuite d'HuggingFace pour générer un vecteur de 384 dimensions.
-    
-    HuggingFace feature-extraction retourne [[v1, v2, ...]] pour un seul texte.
-    On aplatit toujours le résultat pour obtenir [v1, v2, ...].
-    """
+    """Utilise l'API gratuite d'HuggingFace pour générer un vecteur de 384 dimensions."""
     model_id = "sentence-transformers/all-MiniLM-L6-v2"
-    api_url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{model_id}"
+    # URL correcte pour les modèles sentence-transformers
+    api_url = f"https://api-inference.huggingface.co/models/{model_id}"
 
-    headers = {}
+    headers = {"Content-Type": "application/json"}
     hf_token = os.getenv("HF_TOKEN")
     if hf_token:
         headers["Authorization"] = f"Bearer {hf_token}"
@@ -25,17 +22,21 @@ def get_huggingface_embedding(text: str) -> list[float]:
         response.raise_for_status()
         result = response.json()
 
-        # HuggingFace retourne parfois [[...]] au lieu de [...] — on aplatit
+        # HuggingFace sentence-transformers retourne [[...]] pour un seul texte
         if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
             result = result[0]
 
-        # Vérification de la dimension attendue
+        # Vérification de la dimension et des valeurs
+        if not isinstance(result, list) or len(result) == 0:
+            print(f"⚠️ Réponse HuggingFace inattendue : {str(result)[:200]}")
+            return [0.0] * 384
+
         if len(result) != 384:
             print(f"⚠️ Dimension inattendue : {len(result)}, attendu 384")
 
-        return result
+        return [float(x) for x in result]
 
     except Exception as e:
         print(f"❌ Erreur HuggingFace Embeddings : {e}")
-        # Vecteur neutre de secours pour ne pas bloquer le serveur
         return [0.0] * 384
+
