@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from apps.api.routers import memory
 from packages.database.models import Base
 from packages.database.session import engine
@@ -7,43 +8,40 @@ import os
 
 app = FastAPI(title="WeChat AgentOps API")
 
-# Création automatique des tables au démarrage (si elles n'existent pas)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 def on_startup():
     try:
         Base.metadata.create_all(bind=engine)
-        # Migration douce : ajout des colonnes manquantes sans perdre les données
         with engine.begin() as conn:
             conn.execute(text("""
                 ALTER TABLE knowledge_chunks 
                 ADD COLUMN IF NOT EXISTS metadata_json JSON DEFAULT '{}'::json
             """))
-        print("✅ Tables Neon créées/migrées avec succès")
+        print("✅ Tables Neon vérifiées")
     except Exception as e:
-        print(f"❌ Erreur de migration DB: {e}")
+        print(f"❌ Erreur DB: {e}")
 
 app.include_router(memory.router)
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "Le Cerveau d'Équipe AgentOps est en ligne !"}
+    return {"status": "ok"}
 
 @app.get("/health")
 def health_check():
-    """Endpoint de diagnostic complet."""
     db_ok = False
-    hf_ok = False
     try:
         with engine.connect() as conn:
-            conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+            conn.execute(text("SELECT 1"))
         db_ok = True
-    except Exception as e:
+    except:
         pass
-    return {
-        "status": "ok",
-        "database": "connected" if db_ok else "error",
-        "env": {
-            "DATABASE_URL": "set" if os.getenv("DATABASE_URL") else "MISSING",
-            "REDIS_URL": "set" if os.getenv("REDIS_URL") else "MISSING",
-        }
-    }
+    return {"status": "ok", "database": "connected" if db_ok else "error"}

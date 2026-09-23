@@ -88,3 +88,39 @@ def submit_review(chunk_id: str, decision: ReviewDecision, db: Session = Depends
         
     db.commit()
     return {"status": "success"}
+
+@router.get("/dashboard/chunks")
+def get_all_chunks(project_id: str, db: Session = Depends(get_db)):
+    """API pour le Dashboard : Récupère toute la mémoire (tous statuts)."""
+    query = text("SELECT id, content, status, metadata_json, created_at FROM knowledge_chunks WHERE project_id = :pid ORDER BY created_at DESC")
+    results = db.execute(query, {"pid": project_id}).fetchall()
+    return [{
+        "id": str(r[0]),
+        "content": str(r[1]),
+        "status": str(r[2]),
+        "metadata": r[3] if r[3] else {},
+        "created_at": r[4].isoformat() if r[4] else None
+    } for r in results]
+
+class UpdateChunkRequest(BaseModel):
+    content: str = None
+    status: str = None
+    metadata: dict = None
+
+@router.patch("/dashboard/chunks/{chunk_id}")
+def update_chunk(chunk_id: str, req: UpdateChunkRequest, db: Session = Depends(get_db)):
+    """API pour le Dashboard : Modifie un chunk (texte, statut, tags)."""
+    chunk = db.query(KnowledgeChunk).filter(KnowledgeChunk.id == chunk_id).first()
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk introuvable")
+    
+    if req.content is not None:
+        chunk.content = req.content
+        # Optionnel: Re-vectoriser si le contenu change beaucoup
+    if req.status is not None:
+        chunk.status = req.status
+    if req.metadata is not None:
+        chunk.metadata_json = req.metadata
+        
+    db.commit()
+    return {"status": "success"}
