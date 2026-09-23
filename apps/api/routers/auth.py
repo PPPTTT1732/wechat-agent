@@ -29,3 +29,11 @@ def sync_user(req: SyncRequest, db: Session = Depends(get_db)):
         db.refresh(user)
         
     return {"status": "success", "role": user.role, "email": user.email}
+
+@router.delete("/reset-users")
+def reset_users(db: Session = Depends(get_db)):
+    """Route temporaire pour vider la table users avant la vraie connexion admin"""
+    count = db.query(User).count()
+    db.query(User).delete()
+    db.commit()
+    return {"message": f"{count} utilisateur(s) supprimé(s). La table est prête pour le vrai Admin."}
