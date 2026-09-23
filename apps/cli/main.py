@@ -59,7 +59,7 @@ def prepare(prompt: str):
         
     typer.secho("🧠 Consultation de la mémoire d'équipe (Neon DB)...", fg=typer.colors.YELLOW)
     
-    # --- LE VRAI APPEL API ---
+    # 1. Requête au Cerveau Global
     api_url = f"{config['api_url']}/api/v1/memory/prepare"
     headers = {"Authorization": f"Bearer {config['token']}"}
     payload = {"project_id": config["project_id"], "prompt": prompt}
@@ -72,24 +72,57 @@ def prepare(prompt: str):
         typer.secho(f"⚠️ Erreur de connexion au serveur : {e}", fg=typer.colors.RED)
         memory_context = "Connexion à la mémoire échouée. Mode hors-ligne."
 
+    # 2. Smart Context : Scan automatique du projet local
+    typer.secho("📂 Scan automatique de l'architecture locale...", fg=typer.colors.CYAN)
+    local_context = ""
+    
+    app_json = Path("app.json")
+    if app_json.exists():
+        try:
+            with open(app_json, "r") as f:
+                data = json.load(f)
+                pages = data.get("pages", [])
+                subpackages = data.get("subPackages", [])
+                local_context += f"- **Pages principales :** {', '.join(pages)}\n"
+                if subpackages:
+                    local_context += f"- **Sous-modules détectés :** {len(subpackages)}\n"
+        except Exception:
+            local_context += "- Impossible de lire app.json\n"
+            
+    pkg_json = Path("package.json")
+    if pkg_json.exists():
+        try:
+            with open(pkg_json, "r") as f:
+                deps = list(json.load(f).get("dependencies", {}).keys())
+                local_context += f"- **Dépendances installées :** {', '.join(deps)}\n"
+        except Exception:
+            pass
+            
+    if not local_context:
+        local_context = "*Aucun fichier app.json ou package.json trouvé dans ce dossier.*"
+
+    # 3. Génération du Brief
     brief_content = f"""# 🧠 WeChat AgentOps - Execution Brief
 
 ## 🎯 Demande du Développeur
 {prompt}
 
+## 📂 Architecture Locale (Auto-détectée)
+{local_context}
+
 ## 📚 Mémoire de l'Équipe (Context RAG)
 {memory_context}
 
 ## 📋 Instructions pour Antigravity / Claude
-1. Lis attentivement la demande et la mémoire de l'équipe ci-dessus.
+1. Lis attentivement la demande, la carte du projet et la mémoire de l'équipe ci-dessus.
 2. Si un fichier SKILL.md WeChat existe, respecte rigoureusement son architecture.
-3. Écris le code directement dans ce projet de manière complète.
+3. Écris le code directement dans ce projet de manière complète, sans rien casser aux pages existantes.
 """
     
     with open(BRIEF_FILE, "w") as f:
         f.write(brief_content)
         
-    typer.secho(f"✅ Fichier {BRIEF_FILE} généré avec le contexte cloud !", fg=typer.colors.GREEN)
+    typer.secho(f"✅ Fichier {BRIEF_FILE} généré avec le contexte cloud ET local !", fg=typer.colors.GREEN)
     typer.secho('👉 Demandez à votre IA de l\'exécuter.', fg=typer.colors.CYAN)
 
 @app.command()
