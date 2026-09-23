@@ -108,7 +108,8 @@ class UpdateChunkRequest(BaseModel):
     metadata: dict = None
 
 @router.patch("/dashboard/chunks/{chunk_id}")
-def update_chunk(chunk_id: str, req: UpdateChunkRequest, db: Session = Depends(get_db)):
+def update_chunk(chunk_id: str, req: UpdateChunkRequest, req_obj: Request, db: Session = Depends(get_db)):
+    require_admin(req_obj)
     """API pour le Dashboard : Modifie un chunk (texte, statut, tags)."""
     chunk = db.query(KnowledgeChunk).filter(KnowledgeChunk.id == chunk_id).first()
     if not chunk:
@@ -124,3 +125,47 @@ def update_chunk(chunk_id: str, req: UpdateChunkRequest, db: Session = Depends(g
         
     db.commit()
     return {"status": "success"}
+
+from fastapi import Request
+import base64
+import json
+
+# Stockage temporaire pour la démo : le 1er connecté devient le Lead Dev (ADMIN)
+ADMIN_USER_ID = None
+
+def get_clerk_user_id(req: Request):
+    auth = req.headers.get("Authorization")
+    if not auth or not auth.startswith("Bearer "):
+        return None
+    token = auth.split(" ")[1]
+    try:
+        # Décodage rapide du payload JWT (dans le vrai SaaS, on vérifiera la signature cryptographique)
+        payload = token.split(".")[1]
+        payload += "=" * ((4 - len(payload) % 4) % 4)
+        decoded = json.loads(base64.b64decode(payload).decode('utf-8'))
+        return decoded.get("sub") # l'ID Clerk (ex: user_2...)
+    except:
+        return None
+
+@router.get("/dashboard/me")
+def get_my_role(req: Request):
+    global ADMIN_USER_ID
+    user_id = get_clerk_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Non connecté")
+    
+    # Le premier utilisateur qui appelle cette route devient l'Admin !
+    if ADMIN_USER_ID is None:
+        ADMIN_USER_ID = user_id
+        
+    role = "ADMIN" if user_id == ADMIN_USER_ID else "DEV"
+    return {"role": role, "user_id": user_id}
+
+# On sécurise la modification des chunks !
+def require_admin(req: Request):
+    global ADMIN_USER_ID
+    user_id = get_clerk_user_id(req)
+    if not user_id or user_id != ADMIN_USER_ID:
+        raise HTTPException(status_code=403, detail="Accès refusé : Rôle ADMIN requis.")
+    return user_id
+
