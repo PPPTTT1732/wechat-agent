@@ -37,3 +37,22 @@ def reset_users(db: Session = Depends(get_db)):
     db.query(User).delete()
     db.commit()
     return {"message": f"{count} utilisateur(s) supprimé(s). La table est prête pour le vrai Admin."}
+
+@router.delete("/purge-demo-data")
+def purge_demo_data(db: Session = Depends(get_db)):
+    """Supprime toutes les données de démonstration de la base de données."""
+    from packages.database.sonatel_models import LeaderboardProfile, DevOpsIncident, UIComponent
+    
+    leaders = db.query(LeaderboardProfile).delete()
+    incidents = db.query(DevOpsIncident).delete()
+    components = db.query(UIComponent).delete()
+    db.commit()
+    
+    return {
+        "status": "ok",
+        "deleted": {
+            "leaderboard": leaders,
+            "incidents": incidents,
+            "components": components
+        }
+    }
