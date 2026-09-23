@@ -121,5 +121,46 @@ def learn():
     except Exception as e:
         typer.secho(f"❌ Erreur lors de l'apprentissage : {e}", fg=typer.colors.RED)
 
+@app.command()
+def review():
+    config = load_config()
+    if "project_id" not in config:
+        typer.secho("❌ Projet non lié.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+        
+    typer.secho(f"🔍 Recherche des propositions en attente pour le projet {config['project_id']}...", fg=typer.colors.CYAN)
+    
+    api_url = f"{config['api_url']}/api/v1/memory/review?project_id={config['project_id']}"
+    headers = {"Authorization": f"Bearer {config['token']}"}
+    
+    try:
+        res = requests.get(api_url, headers=headers)
+        res.raise_for_status()
+        chunks = res.json()
+        
+        if not chunks:
+            typer.secho("✅ Super ! Il n'y a aucun code en attente de validation.", fg=typer.colors.GREEN)
+            return
+            
+        for chunk in chunks:
+            typer.secho("\n====================================", fg=typer.colors.MAGENTA)
+            typer.secho("📄 PROPOSITION DE CODE :", fg=typer.colors.YELLOW)
+            typer.echo(chunk["content"])
+            typer.secho("====================================", fg=typer.colors.MAGENTA)
+            
+            choice = typer.prompt("Accepter (A), Rejeter (R), Passer (P)", type=str).upper()
+            
+            if choice == 'A':
+                requests.post(f"{config['api_url']}/api/v1/memory/review/{chunk['id']}", headers=headers, json={"status": "TRUSTED"})
+                typer.secho("✅ Code approuvé (TRUSTED). Il sera utilisé par le système RAG !", fg=typer.colors.GREEN)
+            elif choice == 'R':
+                requests.post(f"{config['api_url']}/api/v1/memory/review/{chunk['id']}", headers=headers, json={"status": "REJECTED"})
+                typer.secho("🗑️ Code rejeté et supprimé.", fg=typer.colors.RED)
+            else:
+                typer.secho("⏭️ Proposition ignorée (reste en attente).", fg=typer.colors.BLUE)
+                
+    except Exception as e:
+        typer.secho(f"❌ Erreur réseau : {e}", fg=typer.colors.RED)
+
 if __name__ == "__main__":
     app()
