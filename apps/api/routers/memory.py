@@ -73,7 +73,7 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
         api_key = "AQ.Ab8RN6" + "JfvFS6GCT" + "sKE4Lm0NO" + "Mvg2a_ewg" + "JCBuWYoG3" + "PmAuGewA"
         provider = "GEMINI"
         
-        system_msg = "Tu es AgentOps, le Tech Lead IA de l'équipe de développement. Base-toi sur le CONTEXTE suivant pour répondre de façon experte.\n\nCONTEXTE LOCAL:\n" + raw_context
+        system_msg = "Tu es l'Expert Absolu et Architecte WeChat Mini-Program de Sonatel. Tu ne codes QUE sur WeChat (WXML, WXSS, WXS, API wx.*). Si on te demande du code pour une autre technologie (React, Python, web classique, etc.), tu DOIS refuser en rappelant ta spécialisation stricte WeChat. Base tes réponses UNIQUEMENT sur les bonnes pratiques du framework WeChat et le CONTEXTE suivant.\n\nCONTEXTE D'ARCHITECTURE WECHAT:\n" + raw_context
         user_msg = "QUESTION DU DÉVELOPPEUR :\n" + req.prompt
 
         answer = ""

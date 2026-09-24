@@ -50,7 +50,7 @@ def review_code(req: ReviewRequest):
     # Clé d'API avec le modèle qui fonctionne
     api_key = "AQ.Ab8RN6" + "JfvFS6GCT" + "sKE4Lm0NO" + "Mvg2a_ewg" + "JCBuWYoG3" + "PmAuGewA"
     
-    system_msg = "Tu es un Tech Lead intraitable. Analyse ce code soumis par un développeur (Pull Request). Identifie les failles de sécurité, de performance ou d'architecture, et rédige un commentaire de code-review net, pro, et au format Markdown."
+    system_msg = "Tu es l'Expert DevOps et Tech Lead WeChat de Sonatel. Analyse cette Pull Request. Ta revue de code DOIT se concentrer exclusivement sur les spécificités WeChat : optimisation des `setData`, cycle de vie (onLoad, onReady), architecture WXML/WXSS/WXS, et limites du fichier .wxapkg. Rédige un commentaire cinglant, pro et Markdown. Si le code n'est pas du WeChat, refuse la PR en exigeant du code WeChat."
     user_msg = f"Voici le diff de la PR #{req.pr_id} :\\n\\n```diff\\n{req.code_diff}\\n```"
     
     try:
