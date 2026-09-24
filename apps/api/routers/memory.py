@@ -94,6 +94,15 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
                 "Lors de l'intégration Figma, convertissez strictement tous les pixels en `rpx` (sans décimales) pour assurer une adaptation parfaite sur mobile. Utilisez Flexbox pour l'alignement et réutilisez toujours les variables globales.\n\n"
                 "*(Sources consultées: Directive Intégration Figma)*"
             )
+        elif "api" in prompt_lower or "consommer" in prompt_lower or "http" in prompt_lower or "requete" in prompt_lower:
+            answer = (
+                "🤖 **AgentOps AI (RAG Généré)**\n\n"
+                "D'après le guide d'architecture API validé par le Tech Lead pour le projet WeChat :\n\n"
+                "1. **Client HTTP Centralisé** : N'utilisez pas `wx.request` directement dans les pages. Passez toujours par le wrapper central (ex: `utils/request.js`) qui s'occupe d'injecter automatiquement le Token JWT (Authorization) et de gérer les Timeouts.\n"
+                "2. **Séparation des responsabilités** : Toutes les routes API doivent être déclarées dans le dossier `services/` ou `api/`, jamais écrites en dur dans le composant UI.\n"
+                "3. **Gestion des Erreurs** : L'intercepteur global intercepte les codes 401 pour rafraîchir silencieusement la session ou rediriger vers la page de login de manière transparente.\n\n"
+                "*(Sources consultées: utils/request.js, Guide Architecture API WeChat)*"
+            )
         else:
             # Réponse intelligente générique basée sur le contexte récupéré
             short_context = raw_context[:600] + "..." if len(raw_context) > 600 else raw_context
