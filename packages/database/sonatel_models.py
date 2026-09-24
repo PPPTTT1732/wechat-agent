@@ -32,3 +32,10 @@ class LeaderboardProfile(Base):
     growth = Column(String)
     badge = Column(String)
     rank = Column(Integer)
+
+class ApiToken(Base):
+    __tablename__ = "api_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    clerk_id = Column(String, index=True)
+    token = Column(String, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
