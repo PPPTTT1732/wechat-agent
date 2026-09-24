@@ -39,3 +39,8 @@ class ApiToken(Base):
     clerk_id = Column(String, index=True)
     token = Column(String, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class ComponentCategory(Base):
+    __tablename__ = "component_categories"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
