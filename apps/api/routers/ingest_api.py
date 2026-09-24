@@ -78,3 +78,25 @@ def ingest_github_url(req: IngestRequest, background_tasks: BackgroundTasks, db:
     background_tasks.add_task(process_github_repo, req.url, req.project_id, db)
     return {"message": "Ingestion démarrée en arrière-plan. Le Cerveau va se remplir dans quelques instants."}
 
+
+class SkillRequest(BaseModel):
+    title: str
+    description: str
+    author: str = "Admin"
+
+@router.get("/skills")
+def get_skills(db: Session = Depends(get_db)):
+    skills = db.query(AgentSkill).order_by(AgentSkill.id.desc()).all()
+    return skills
+
+@router.post("/skills")
+def create_skill(req: SkillRequest, db: Session = Depends(get_db)):
+    skill = AgentSkill(
+        title=req.title,
+        description=req.description,
+        author=req.author
+    )
+    db.add(skill)
+    db.commit()
+    db.refresh(skill)
+    return skill

@@ -62,3 +62,12 @@ class MemoryChunk(Base):
     metadata_json = Column(JSON)
     status = Column(String, default="PROPOSED") # PROPOSED, TRUSTED, REJECTED
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AgentSkill(Base):
+    __tablename__ = "agent_skills"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    description = Column(String)
+    category = Column(String, default="Engineering / Standards")
+    author = Column(String, default="Admin")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
