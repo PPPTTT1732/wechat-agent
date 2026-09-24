@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import subprocess
 from packages.database.session import get_db
-from packages.database.sonatel_models import MemoryChunk
+from packages.database.sonatel_models import MemoryChunk, AgentSkill
 
 router = APIRouter(prefix="/api/v1/memory", tags=["Memory & Ingestion"])
 
