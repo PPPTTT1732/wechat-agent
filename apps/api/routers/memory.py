@@ -81,7 +81,7 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
 
         try:
             # On utilise le modèle de toute dernière génération pour éviter l'erreur 404
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
             data = {"contents": [{"role": "user", "parts": [{"text": system_msg + "\n\n" + user_msg}]}]}
             req_obj = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers={"Content-Type": "application/json"})
 
