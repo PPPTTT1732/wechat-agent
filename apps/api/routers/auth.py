@@ -20,7 +20,7 @@ def sync_user(req: SyncUserRequest, db: Session = Depends(get_db)):
     user = db.query(UserProfile).filter(UserProfile.clerk_id == req.clerk_id).first()
     
     # Premier admin automatique pour les fondateurs, les autres sont USER
-    default_role = "ADMIN" if "marie" in req.email.lower() or "malick" in req.email.lower() else "USER"
+    default_role = "ADMIN" if "malickteuw.devweb@gmail.com" in req.email.lower() else "USER"
     
     if not user:
         user = UserProfile(
