@@ -45,7 +45,7 @@ def learn_from_code(req: LearnRequest, db: Session = Depends(get_db)):
 
 @router.post("/prepare")
 def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
-    """Recherche les solutions validées (TRUSTED) et génère une réponse IA."""
+    """Recherche les solutions (Retrieval) puis génère via MISTRAL API (Generation)."""
     try:
         vector = get_huggingface_embedding(req.prompt)
         vector_literal = "[" + ",".join(str(round(x, 6)) for x in vector) + "]"
@@ -55,7 +55,7 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
             FROM knowledge_chunks
             WHERE project_id = :pid AND status = 'TRUSTED'
             ORDER BY embedding <=> CAST(:vec AS vector)
-            LIMIT 3
+            LIMIT 5
         """)
 
         results = db.execute(query, {"pid": req.project_id, "vec": vector_literal}).fetchall()
@@ -63,57 +63,54 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
         if not results:
             return {"context": "Aucune mémoire validée trouvée pour ce projet. Appliquez les règles d'architecture standard."}
 
-        # 1. Étape de "Retrieval" (Recherche)
-        raw_context = "\n".join([row[0] for row in results])
+        raw_context = "
+---
+".join([row[0] for row in results])
         
-        # 2. Étape de "Generation" (Synthèse IA pour la réponse Frontend)
-        prompt_lower = req.prompt.lower()
+        # --- GENERATION VIA MISTRAL API ---
+        import urllib.request
+        import json
         
-        if "component" in prompt_lower or "composant" in prompt_lower or "creer" in prompt_lower:
-            answer = (
-                "🤖 **AgentOps AI (RAG Généré)**\n\n"
-                "D'après l'architecture de notre projet `mp-afritrips` (analysée via `app.json` et les dossiers `components/`), voici la marche à suivre pour créer un composant :\n\n"
-                "1. **Déclaration Globale** : Vous devez enregistrer votre composant dans le bloc `usingComponents` du fichier `app.json` pour qu'il soit accessible partout.\n"
-                "```json\n\"usingComponents\": {\n  \"mon-nouveau-composant\": \"/components/ui/mon-composant/index\"\n}\n```\n"
-                "2. **Styling Strict** : N'utilisez pas de valeurs fixes (comme `height: 100vh`). Privilégiez `min-height` et les valeurs en `rpx` sans virgule, conformément aux règles que vous avez validées.\n\n"
-                "*(Sources consultées: app.json, composants de l'équipe)*"
-            )
-        elif "iphone" in prompt_lower or "safe" in prompt_lower or "encoche" in prompt_lower:
-            answer = (
-                "🤖 **AgentOps AI (RAG Généré)**\n\n"
-                "D'après l'Audit iOS présent dans notre mémoire Trusted, la gestion des iPhone avec encoche est critique pour ce projet.\n\n"
-                "🚨 **Règles absolues :**\n"
-                "- Bannir `height: 100vh` et `overflow: hidden` sur les layouts globaux.\n"
-                "- Intégrer systématiquement `padding-bottom: env(safe-area-inset-bottom);` dans le WXSS de vos pages (surtout celles avec un Tabbar ou des boutons fixes en bas).\n\n"
-                "*(Sources consultées: Audit Responsive iPhone Reel)*"
-            )
-        elif "figma" in prompt_lower or "design" in prompt_lower:
-            answer = (
-                "🤖 **AgentOps AI (RAG Généré)**\n\n"
-                "D'après les directives de l'équipe Design/Dev validées dans le système :\n\n"
-                "Lors de l'intégration Figma, convertissez strictement tous les pixels en `rpx` (sans décimales) pour assurer une adaptation parfaite sur mobile. Utilisez Flexbox pour l'alignement et réutilisez toujours les variables globales.\n\n"
-                "*(Sources consultées: Directive Intégration Figma)*"
-            )
-        elif "api" in prompt_lower or "consommer" in prompt_lower or "http" in prompt_lower or "requete" in prompt_lower:
-            answer = (
-                "🤖 **AgentOps AI (RAG Généré)**\n\n"
-                "D'après le guide d'architecture API validé par le Tech Lead pour le projet WeChat :\n\n"
-                "1. **Client HTTP Centralisé** : N'utilisez pas `wx.request` directement dans les pages. Passez toujours par le wrapper central (ex: `utils/request.js`) qui s'occupe d'injecter automatiquement le Token JWT (Authorization) et de gérer les Timeouts.\n"
-                "2. **Séparation des responsabilités** : Toutes les routes API doivent être déclarées dans le dossier `services/` ou `api/`, jamais écrites en dur dans le composant UI.\n"
-                "3. **Gestion des Erreurs** : L'intercepteur global intercepte les codes 401 pour rafraîchir silencieusement la session ou rediriger vers la page de login de manière transparente.\n\n"
-                "*(Sources consultées: utils/request.js, Guide Architecture API WeChat)*"
-            )
-        else:
-            # Réponse intelligente générique basée sur le contexte récupéré
-            short_context = raw_context[:600] + "..." if len(raw_context) > 600 else raw_context
-            answer = (
-                f"🤖 **AgentOps AI (RAG Généré)**\n\n"
-                f"J'ai fouillé dans l'architecture du projet et voici les informations clés que j'ai extraites pour répondre à votre requête :\n\n"
-                f"```text\n{short_context}\n```\n\n"
-                f"*(Analyse basée sur les fichiers les plus pertinents de la codebase mp-afritrips)*"
-            )
+        api_key = "mstrl_A3Z8hbAXiDmyZwC58BZbyZqD370yJQS8_3cBZ7J"
+        url = "https://api.mistral.ai/v1/chat/completions"
+        
+        system_msg = "Tu es AgentOps, le Tech Lead IA de l'équipe de développement. Tu aides les développeurs en répondant à leurs questions d'architecture. Tu dois IMPÉRATIVEMENT te baser sur le CONTEXTE fourni (qui est extrait de la base de code de l'entreprise). Rédige une réponse claire, experte, concise et en français, en utilisant le format Markdown. Si le contexte ne donne pas la réponse, utilise tes compétences globales en précisant que le code source interne ne détaille pas ce point."
+        user_msg = f"CONTEXTE LOCAL DU PROJET (Mémoire RAG) :
+{raw_context}
 
-        return {"context": answer}
+QUESTION DU DÉVELOPPEUR :
+{req.prompt}"
+        
+        data = {
+            "model": "mistral-small-latest",
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg}
+            ],
+            "temperature": 0.1
+        }
+        
+        request_obj = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        })
+        
+        try:
+            with urllib.request.urlopen(request_obj) as response:
+                result = json.loads(response.read().decode("utf-8"))
+                answer = result["choices"][0]["message"]["content"]
+                final_response = f"🤖 **AgentOps (Propulsé par Mistral AI)**
+
+{answer}"
+        except Exception as e:
+            final_response = f"🤖 **AgentOps AI (Erreur Réseau Mistral)**
+
+Impossible de contacter l'API : {str(e)}
+
+Voici les données brutes que j'avais trouvées :
+{raw_context[:300]}"
+
+        return {"context": final_response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur prepare: {str(e)}")
 
