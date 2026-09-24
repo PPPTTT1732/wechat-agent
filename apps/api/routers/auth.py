@@ -84,3 +84,12 @@ def seed_demo_data(db: Session = Depends(get_db)):
         ])
     db.commit()
     return {"message": "Données démo injectées"}
+
+@router.get("/force-migrate")
+def force_migrate():
+    from packages.database.session import engine
+    from packages.database.models import Base
+    from packages.database.sonatel_models import Base as SonatelBase
+    Base.metadata.create_all(bind=engine)
+    SonatelBase.metadata.create_all(bind=engine)
+    return {"message": "Toutes les tables ont été synchronisées avec succès !"}
