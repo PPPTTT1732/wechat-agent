@@ -53,3 +53,12 @@ class UserProfile(Base):
     name = Column(String)
     role = Column(String, default="USER") # "ADMIN" ou "USER"
     can_ingest = Column(Integer, default=0) # 0 = Non, 1 = Oui (SQLite/Postgres fallback for boolean)
+
+class MemoryChunk(Base):
+    __tablename__ = "memory_chunks"
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(String, index=True)
+    content = Column(String)
+    metadata_json = Column(JSON)
+    status = Column(String, default="PROPOSED") # PROPOSED, TRUSTED, REJECTED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
