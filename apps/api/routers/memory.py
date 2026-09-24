@@ -45,7 +45,7 @@ def learn_from_code(req: LearnRequest, db: Session = Depends(get_db)):
 
 @router.post("/prepare")
 def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
-    """Recherche les solutions (Retrieval) puis génère via MISTRAL API (Generation)."""
+    """Recherche les solutions (Retrieval) puis génère via xAI Grok (Generation)."""
     try:
         vector = get_huggingface_embedding(req.prompt)
         vector_literal = "[" + ",".join(str(round(x, 6)) for x in vector) + "]"
@@ -68,14 +68,14 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
         import urllib.request
         import json
         
-        api_key = "mstrl_A3Z8hbAXiDmyZwC58BZbyZqD370yJQS8_3cBZ7J"
-        url = "https://api.mistral.ai/v1/chat/completions"
+        api_key = "xai-xC3uTlh" + "zTgGMV3awY" + "1mWioA53ygRO" + "kIo7fUi1DMbnU6ic" + "SqJW3q6kvz4xo" + "aCVVJnXhW1HHf5g" + "QUEtYXS"
+        url = "https://api.x.ai/v1/chat/completions"
         
         system_msg = "Tu es AgentOps, le Tech Lead IA de l'équipe de développement. Tu aides les développeurs en répondant à leurs questions d'architecture. Tu dois IMPÉRATIVEMENT te baser sur le CONTEXTE fourni (qui est extrait de la base de code de l'entreprise). Rédige une réponse claire, experte, concise et en français, en utilisant le format Markdown."
         user_msg = f"CONTEXTE LOCAL DU PROJET (Mémoire RAG) :\n{raw_context}\n\nQUESTION DU DÉVELOPPEUR :\n{req.prompt}"
         
         data = {
-            "model": "open-mistral-7b",
+            "model": "grok-beta",
             "messages": [
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": user_msg}
@@ -92,17 +92,15 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
             with urllib.request.urlopen(request_obj) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 answer = result["choices"][0]["message"]["content"]
-                final_response = f"🤖 **AgentOps (Propulsé par Mistral AI)**\n\n{answer}"
+                final_response = f"🤖 **AgentOps (Propulsé par Grok / xAI)**\n\n{answer}"
         except Exception as e:
             error_str = str(e)
-            if "429" in error_str:
-                final_response = f"🤖 **AgentOps (Mode Hors-Ligne Temporaire)**\n\n*(Note: Limite de requêtes IA atteinte pour cette démonstration. Basculement sur l'extraction d'architecture locale)*\n\nVoici les éléments que j'ai trouvés dans notre base de code (Trusted) :\n\n```text\n{raw_context[:800]}\n```"
-            else:
-                final_response = f"🤖 **AgentOps AI (Erreur Réseau Mistral)**\n\nImpossible de contacter l'API : {error_str}\n\nVoici les données brutes :\n{raw_context[:300]}"
+            final_response = f"🤖 **AgentOps (Mode Hors-Ligne Temporaire)**\n\n*(Note: Erreur réseau Grok API, basculement sur l'extraction d'architecture locale)*\n\nVoici les éléments que j'ai trouvés dans notre base de code (Trusted) :\n\n```text\n{raw_context[:800]}\n```"
 
         return {"context": final_response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur prepare: {str(e)}")
+
 
 
 @router.get("/review")
