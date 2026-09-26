@@ -80,31 +80,44 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
                 params[f"kw{i}"] = f"%{w}%"
             ft_results = db.execute(ft_query, params).fetchall()
 
-        # 3. FUSION des résultats (dédupliqués)
+        # 3. FUSION des résultats (dédupliqués et classifiés)
         seen = set()
-        all_chunks = []
+        local_chunks = []
+        gold_chunks = []
+        
         for row in list(ft_results) + list(sem_results):
-            if row[0] not in seen:
-                seen.add(row[0])
-                all_chunks.append(row[0])
-            if len(all_chunks) >= 6:
-                break
+            content = row[0]
+            pid = row[1] if len(row) > 1 else req.project_id
+            if content not in seen:
+                seen.add(content)
+                if pid == 'wechat-gold-standard':
+                    gold_chunks.append(content)
+                else:
+                    local_chunks.append(content)
 
-        if not all_chunks:
+        if not local_chunks and not gold_chunks:
             return {"context": "Aucune mémoire validée trouvée pour ce projet."}
 
-        raw_context = "\n---\n".join(all_chunks)
+        # Construction d'un contexte structuré et parfait
+        raw_context = "=== RÈGLES D'ARCHITECTURE (GOLD STANDARD) ===\n"
+        raw_context += "\n---\n".join(gold_chunks[:4]) if gold_chunks else "Aucune règle spécifique trouvée."
+        
+        raw_context += "\n\n=== CONTEXTE DU PROJET LOCAL ===\n"
+        raw_context += "\n---\n".join(local_chunks[:4]) if local_chunks else "Aucun composant local trouvé."
 
         # 4. SYNTHÈSE GEMINI (si disponible)
         GEMINI_KEY = "AQ.Ab8R" + "N6JfvFS6GCTsKE4Lm0NOMvg2a_ewgJCBuWYoG3PmAuGewA"
         GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.8-flash"]
 
-        system_prompt = """Tu es le TECH LEAD WECHAT SÉNIOR de Sonatel.
-Utilise le CONTEXTE ci-dessous (extrait de la mémoire officielle du projet mp-afritrips) pour répondre précisément à la question du développeur.
-Règles : réponds UNIQUEMENT sur WeChat. Cite le code exact si disponible. Sois concis et pratique.
+        system_prompt = """Tu es le TECH LEAD SÉNIOR de Sonatel et un expert absolu en Mini-Programmes WeChat.
+Ta mission est de répondre à la question du développeur en fusionnant deux sources de vérité :
+1. Les RÈGLES D'ARCHITECTURE (Gold Standard) : C'est la loi absolue.
+2. Le CONTEXTE DU PROJET LOCAL : C'est le design et le code spécifique au projet sur lequel il travaille.
 
-CONTEXTE OFFICIEL mp-afritrips :
-""" + raw_context[:2000]
+Si une pratique du projet local contredit le Gold Standard, corrige-la. Utilise le Markdown.
+
+VOICI LA MÉMOIRE OFFICIELLE :
+""" + raw_context[:2500]
 
         try:
             payload = _json.dumps({
