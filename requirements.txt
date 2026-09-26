@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+alembic
+pgvector
+psycopg2-binary
+openai
+anthropic
+celery
+redis
+typer
+requests
+sentence-transformers>=2.2.2
