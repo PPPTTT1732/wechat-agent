@@ -1,6 +1,6 @@
 from apps.worker.celery_app import celery_app
 from packages.database.session import SessionLocal
-from packages.database.models import AgentRun, Project
+from packages.database.models import Project
 from packages.code_intelligence.scanner import ProjectScanner
 import time
 
