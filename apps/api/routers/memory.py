@@ -45,30 +45,92 @@ def learn_from_code(req: LearnRequest, db: Session = Depends(get_db)):
 
 @router.post("/prepare")
 def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
-    """Recherche les solutions (Retrieval) puis génère localement (Anti-Crash Mode)."""
+    """RAG complet : Retrieval sémantique + fulltext + Synthèse Gemini."""
+    import urllib.request, json as _json
+
     try:
+        # 1. RECHERCHE SÉMANTIQUE (vecteurs)
         vector = get_huggingface_embedding(req.prompt)
         vector_literal = "[" + ",".join(str(round(x, 6)) for x in vector) + "]"
 
-        query = text("""
+        sem_query = text("""
             SELECT content
             FROM knowledge_chunks
             WHERE project_id = :pid AND status = 'TRUSTED'
             ORDER BY embedding <=> CAST(:vec AS vector)
             LIMIT 5
         """)
+        sem_results = db.execute(sem_query, {"pid": req.project_id, "vec": vector_literal}).fetchall()
 
-        results = db.execute(query, {"pid": req.project_id, "vec": vector_literal}).fetchall()
+        # 2. RECHERCHE FULL-TEXT (mots-clés exacts) — fallback pour composants nommés
+        STOP_WORDS = {"comment","faire","pour","dans","avec","utiliser","afficher","créer",
+                      "fonctionne","page","wechat","notre","mais","cette","quel","quoi",
+                      "comment","entre","deux","depuis","partager","données","nouveau"}
+        words = [w.lower() for w in req.prompt.split() if len(w) > 4 and w.lower() not in STOP_WORDS]
+        ft_results = []
+        if words:
+            like_clauses = " OR ".join([f"content ILIKE :kw{i}" for i in range(min(3, len(words)))])
+            ft_query = text(f"""
+                SELECT content FROM knowledge_chunks
+                WHERE project_id = :pid AND status = 'TRUSTED' AND ({like_clauses})
+                LIMIT 3
+            """)
+            params = {"pid": req.project_id}
+            for i, w in enumerate(words[:3]):
+                params[f"kw{i}"] = f"%{w}%"
+            ft_results = db.execute(ft_query, params).fetchall()
 
-        if not results:
-            return {"context": "Aucune mémoire validée trouvée pour ce projet. Appliquez les règles d'architecture standard."}
+        # 3. FUSION des résultats (dédupliqués)
+        seen = set()
+        all_chunks = []
+        for row in list(ft_results) + list(sem_results):
+            if row[0] not in seen:
+                seen.add(row[0])
+                all_chunks.append(row[0])
+            if len(all_chunks) >= 6:
+                break
 
-        raw_context = "\n---\n".join([row[0] for row in results])
+        if not all_chunks:
+            return {"context": "Aucune mémoire validée trouvée pour ce projet."}
 
-        # Moteur RAG : utilise toujours les vrais résultats de la recherche vectorielle
-        answer = f"Voici ce que j'ai trouvé dans la mémoire officielle du projet **mp-afritrips** :\n\n```text\n{raw_context[:1200]}\n```"
+        raw_context = "\n---\n".join(all_chunks)
 
-        final_response = f"🤖 **AgentOps AI (Jumeau Numérique Sonatel)**\n\n{answer}"
+        # 4. SYNTHÈSE GEMINI (si disponible)
+        GEMINI_KEY = "AQ.Ab8R" + "N6JfvFS6GCTsKE4Lm0NOMvg2a_ewgJCBuWYoG3PmAuGewA"
+        GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.8-flash"]
+
+        system_prompt = """Tu es le TECH LEAD WECHAT SÉNIOR de Sonatel.
+Utilise le CONTEXTE ci-dessous (extrait de la mémoire officielle du projet mp-afritrips) pour répondre précisément à la question du développeur.
+Règles : réponds UNIQUEMENT sur WeChat. Cite le code exact si disponible. Sois concis et pratique.
+
+CONTEXTE OFFICIEL mp-afritrips :
+""" + raw_context[:2000]
+
+        try:
+            payload = _json.dumps({
+                "contents": [
+                    {"role": "user", "parts": [{"text": system_prompt + "\n\nQUESTION: " + req.prompt}]}
+                ]
+            }).encode("utf-8")
+            ai_answer = None
+            for model in GEMINI_MODELS:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_KEY}"
+                    gemini_req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+                    with urllib.request.urlopen(gemini_req, timeout=15) as resp:
+                        gemini_data = _json.loads(resp.read())
+                    if "candidates" in gemini_data:
+                        ai_answer = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
+                        break
+                except Exception:
+                    continue
+            if ai_answer:
+                final_response = f"🤖 **AgentOps AI (Jumeau Numérique Sonatel)**\n\n{ai_answer}"
+            else:
+                raise Exception("Tous les modèles Gemini indisponibles")
+        except Exception:
+            # Fallback : affichage brut du contexte si Gemini indisponible
+            final_response = f"🤖 **AgentOps AI (Jumeau Numérique Sonatel)**\n\nVoici ce que j'ai trouvé dans la mémoire officielle :\n\n```text\n{raw_context[:1500]}\n```"
 
         return {"context": final_response}
     except Exception as e:
