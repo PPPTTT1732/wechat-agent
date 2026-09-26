@@ -1,4 +1,14 @@
+
+import sys
+import subprocess
+try:
+    import sentence_transformers
+except ImportError:
+    print("🚀 [RENDER HACK] sentence-transformers manquant. Auto-installation...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "sentence-transformers>=2.2.2"])
+
 from fastapi import FastAPI
+
 from fastapi.middleware.cors import CORSMiddleware
 from apps.api.routers import memory
 from apps.api.routers import components, devops, team, twin, auth, ingest_api
