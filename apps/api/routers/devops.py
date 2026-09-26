@@ -48,7 +48,7 @@ def review_code(req: ReviewRequest):
     """Analyse un bloc de code ou un diff de PR via Gemini (DevOps Auto-Heal)"""
     
     # Clé d'API avec le modèle qui fonctionne
-    api_key = "AQ.Ab8RN6" + "JfvFS6GCT" + "sKE4Lm0NO" + "Mvg2a_ewg" + "JCBuWYoG3" + "PmAuGewA"
+    api_key = os.environ.get("GEMINI_API_KEY", "VOTRE_CLEF_API_GEMINI")
     
     system_msg = """Tu es le TECH LEAD WECHAT SÉNIOR de Sonatel. 
 Ta mission : Transformer les requêtes vagues d'un développeur junior en une architecture de code WeChat parfaite, ou faire une revue de code intraitable.
@@ -92,3 +92,29 @@ RÈGLES D'OR DE L'ARCHITECTURE SONATEL :
         # Fallback local en cas d'erreur de réseau (Anti-Crash)
         fallback_review = "🤖 **AgentOps (Revue Statique locale)**\\n\\n⚠️ **Erreur critique d'Architecture** détectée :\\nVous avez exposé le `JWT_SECRET` en clair dans le middleware.\\n\\n**Recommandation** : Déplacez cette variable dans un fichier `.env` ou un Secret Manager (GCP) immédiatement."
         return {"status": "fallback", "review": fallback_review}
+
+
+class ReportRequest(BaseModel):
+    query: str
+    ai_response: str
+    comment: str
+
+@router.post("/report")
+def report_ai_error(req: ReportRequest, db: Session = Depends(get_db)):
+    """Système de Feedback : Enregistre les erreurs de l'IA pour analyse humaine"""
+    from sqlalchemy import text
+    import uuid
+    import time
+    
+    sql = text("""
+        INSERT INTO devops_incidents (id, repo, error_trace, status, tone, time_ago)
+        VALUES (:id, 'AI-AgentOps', :trace, 'UNRESOLVED', 'red', :time)
+    """)
+    trace_msg = f"ERREUR RAG Signalée:\nQuestion: {req.query}\nErreur: {req.comment}"
+    db.execute(sql, {
+        "id": int(time.time()), 
+        "trace": trace_msg[:255], 
+        "time": "Just now"
+    })
+    db.commit()
+    return {"status": "success", "message": "Incident enregistré. L'équipe Tech Lead corrigera le modèle."}

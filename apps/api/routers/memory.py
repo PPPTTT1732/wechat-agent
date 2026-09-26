@@ -106,7 +106,8 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
         raw_context += "\n---\n".join(local_chunks[:4]) if local_chunks else "Aucun composant local trouvé."
 
         # 4. SYNTHÈSE GEMINI (si disponible)
-        GEMINI_KEY = "AQ.Ab8R" + "N6JfvFS6GCTsKE4Lm0NOMvg2a_ewgJCBuWYoG3PmAuGewA"
+        import os
+        GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "VOTRE_CLEF_API_GEMINI")
         GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.8-flash"]
 
         system_prompt = """Tu es le TECH LEAD SÉNIOR de Sonatel et un expert absolu en Mini-Programmes WeChat.
@@ -160,7 +161,7 @@ VOICI LA MÉMOIRE OFFICIELLE :
 @router.get("/review")
 def get_proposed_chunks(project_id: str, db: Session = Depends(get_db)):
     """Récupère tous les codes en attente de validation."""
-    query = text("SELECT id, content FROM knowledge_chunks WHERE project_id = :pid AND status = 'PROPOSED'")
+    query = text("SELECT id, content FROM knowledge_chunks WHERE 1=1 AND status = 'PROPOSED'")
     results = db.execute(query, {"pid": project_id}).fetchall()
     return [{"id": str(r[0]), "content": str(r[1])} for r in results]
 
@@ -182,7 +183,7 @@ def submit_review(chunk_id: str, decision: ReviewDecision, db: Session = Depends
 @router.get("/dashboard/chunks")
 def get_all_chunks(project_id: str, db: Session = Depends(get_db)):
     """API pour le Dashboard : Récupère toute la mémoire (tous statuts)."""
-    query = text("SELECT id, content, status, metadata_json, created_at FROM knowledge_chunks WHERE project_id = :pid ORDER BY created_at DESC")
+    query = text("SELECT id, content, status, metadata_json, created_at FROM knowledge_chunks WHERE 1=1 ORDER BY created_at DESC")
     results = db.execute(query, {"pid": project_id}).fetchall()
     return [{
         "id": str(r[0]),
