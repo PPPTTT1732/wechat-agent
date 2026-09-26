@@ -78,7 +78,7 @@ RÈGLES D'OR DE L'ARCHITECTURE SONATEL :
     user_msg = f"Voici le diff de la PR #{req.pr_id} :\\n\\n```diff\\n{req.code_diff}\\n```"
     
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={api_key}"
         data = {"contents": [{"role": "user", "parts": [{"text": system_msg + "\\n\\n" + user_msg}]}]}
         req_obj = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers={"Content-Type": "application/json"})
 
