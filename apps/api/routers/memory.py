@@ -56,7 +56,7 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
         sem_query = text("""
             SELECT content
             FROM knowledge_chunks
-            WHERE project_id = :pid AND status = 'TRUSTED'
+            WHERE project_id IN (:pid, 'wechat-gold-standard') AND status = 'TRUSTED'
             ORDER BY embedding <=> CAST(:vec AS vector)
             LIMIT 5
         """)
@@ -72,7 +72,7 @@ def prepare_context(req: PrepareRequest, db: Session = Depends(get_db)):
             like_clauses = " OR ".join([f"content ILIKE :kw{i}" for i in range(min(3, len(words)))])
             ft_query = text(f"""
                 SELECT content FROM knowledge_chunks
-                WHERE project_id = :pid AND status = 'TRUSTED' AND ({like_clauses})
+                WHERE project_id IN (:pid, 'wechat-gold-standard') AND status = 'TRUSTED' AND ({like_clauses})
                 LIMIT 3
             """)
             params = {"pid": req.project_id}
