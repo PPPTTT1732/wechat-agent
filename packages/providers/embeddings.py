@@ -5,9 +5,9 @@ GEMINI_KEY = "AQ.Ab8R" + "N6JfvFS6GCTsKE4Lm0NOMvg2a_ewgJCBuWYoG3PmAuGewA"
 def get_huggingface_embedding(text: str) -> list[float]:
     """Génère un vecteur via l'API Gemini (sans saturer la RAM de Render)"""
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={GEMINI_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key={GEMINI_KEY}"
         payload = {
-            "model": "models/text-embedding-004",
+            "model": "models/gemini-embedding-2",
             "content": {"parts": [{"text": text[:8000]}]}, # Limite de sécurité sur la taille du texte
             "outputDimensionality": 384 # Compatible avec notre NeonDB
         }
